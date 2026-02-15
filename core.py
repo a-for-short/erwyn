@@ -1,9 +1,10 @@
 """
-    Let's define what we are working with here.
+    Let's define what we are working with.
     We want a following input -> output:
         input: an arbitrary shaped potential and an arbitrary shaped
             wavefunction
         output: evolution of wavefunction in time
+
     Time dependency is completely given by solving the stationary Schrödinger's
     equation (SSE). The steps are as follows:
         1) find eigenfunctions and eigenvalues for a potential given
@@ -21,7 +22,7 @@
             V -> diag(v_i)
             psi -> {psi_i}
         b) discretize second derivative
-            This one is a tridiagonal matrix.
+            This one is a tridiagonal matrix according to
             d^2 f/ (d x^2) = (f_(i+1) - 2 f_i + f_(i-1))/(d x)^2
         c) diagonalize the Hamiltonian finding the coordinate representations
             of finite basis and their respective energies
@@ -90,11 +91,19 @@ class Spectrum:
         self.grid = hamiltonian.grid
 
     def normalized_state(self, n):
+        """
+        Return normalized n-th eigenstate.
+        """
         psi = self.eigenvectors[:, n]
         norm = np.sqrt(np.sum(np.abs(psi)**2) * self.grid.dx)
         return psi / norm
 
     def plot(self, n_states=5, scale=1.0, cmap_name="viridis"):
+        """
+        Plot the solution for SSE:
+            - the potential
+            - first n_states eigenvalues and eigenfunctions
+        """
         x = self.grid.x
         V = self.hamiltonian.potential
 
@@ -103,7 +112,6 @@ class Spectrum:
 
         plt.figure(figsize=(9, 5))
 
-        # Potential in neutral tone
         plt.plot(x, V, color="black", linewidth=2, label="Potential")
 
         for n in range(n_states):
@@ -119,8 +127,49 @@ class Spectrum:
                     linestyles="dashed",
                     alpha=0.6)
 
-        plt.xlabel("x")
-        plt.ylabel("Energy")
-        plt.title("Stationary Schrödinger Equation")
+        plt.xlabel("x, au")
+        plt.ylabel("Energy, au")
+        plt.title("Stationary Schrödinger Equation solutions")
         plt.tight_layout()
         plt.show()
+
+    def project(self, psi):
+        """
+        Project arbitrary wavefunction onto eigenbasis.
+        Returns expansion coefficients c_n.
+        """
+        dx = self.grid.dx
+        coeffs = []
+
+        for n in range(len(self.energies)):
+            phi = self.normalized_state(n)
+            c = np.sum(np.conjugate(phi) * psi) * dx
+            coeffs.append(c)
+
+        return np.array(coeffs)
+
+
+class TimeEvolution:
+
+    def __init__(self, spectrum, coefficients):
+        self.spectrum = spectrum
+        self.coefficients = coefficients
+
+    def psi_at(self, t):
+        """
+        Evolution operator. By definition it is a solution to time-dependent Schrödinger equation:
+            i h_bar d psi / dt = H psi
+        psi(t) can be written as:
+            psi(t) = sum_n c_n phi_n exp(-i E_n t / hbar)
+        """
+        energies = self.spectrum.energies
+        states = self.spectrum.eigenvectors
+        dx = self.spectrum.grid.dx
+
+        psi = np.zeros_like(states[:, 0], dtype=complex)
+
+        for n, c in enumerate(self.coefficients):
+            phase = np.exp(-1j * energies[n] * t)
+            psi += c * states[:, n] * phase
+
+        return psi
